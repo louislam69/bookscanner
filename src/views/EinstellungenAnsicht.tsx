@@ -1,0 +1,104 @@
+import { useEffect, useState } from "react";
+import type { Ansicht } from "../App";
+import { ladeEinstellungen, speichereEinstellungen, STANDARD_MODELL } from "../db";
+
+const MODELLE = [
+  { id: "claude-opus-4-8", name: "Claude Opus 4.8 (beste Qualität)" },
+  { id: "claude-sonnet-5", name: "Claude Sonnet 5 (günstiger)" },
+  { id: "claude-haiku-4-5", name: "Claude Haiku 4.5 (am günstigsten)" },
+];
+
+export default function EinstellungenAnsicht({
+  navigiere,
+}: {
+  navigiere: (a: Ansicht) => void;
+}) {
+  const [apiKey, setApiKey] = useState("");
+  const [modell, setModell] = useState(STANDARD_MODELL);
+  const [gespeichert, setGespeichert] = useState(false);
+
+  useEffect(() => {
+    void ladeEinstellungen().then((e) => {
+      setApiKey(e.apiKey);
+      setModell(e.modell);
+    });
+  }, []);
+
+  async function speichern() {
+    await speichereEinstellungen({ apiKey: apiKey.trim(), modell });
+    setGespeichert(true);
+  }
+
+  return (
+    <div className="seite">
+      <header className="kopf">
+        <button className="knopf-leise" onClick={() => navigiere({ name: "liste" })}>
+          ←
+        </button>
+        <h1>Einstellungen</h1>
+      </header>
+
+      <div className="formular">
+        <label>
+          Anthropic-API-Key
+          <input
+            type="password"
+            value={apiKey}
+            onChange={(e) => {
+              setApiKey(e.target.value);
+              setGespeichert(false);
+            }}
+            placeholder="sk-ant-…"
+            autoComplete="off"
+          />
+        </label>
+        <p className="dezent">
+          Der Key wird ausschließlich lokal auf diesem Gerät gespeichert und
+          ist in Export-Dateien niemals enthalten. Einen Key bekommst du unter{" "}
+          <a href="https://platform.claude.com" target="_blank" rel="noreferrer">
+            platform.claude.com
+          </a>
+          . Die Kosten für ein komplettes Buch liegen typischerweise im
+          Cent-Bereich.
+        </p>
+
+        <label>
+          KI-Modell
+          <select value={modell} onChange={(e) => {
+            setModell(e.target.value);
+            setGespeichert(false);
+          }}>
+            {MODELLE.map((m) => (
+              <option key={m.id} value={m.id}>
+                {m.name}
+              </option>
+            ))}
+          </select>
+        </label>
+      </div>
+
+      <div className="knopfzeile">
+        <button className="knopf" onClick={() => void speichern()}>
+          {gespeichert ? "✓ Gespeichert" : "Speichern"}
+        </button>
+      </div>
+
+      <h2 className="abschnitt">So funktioniert die App</h2>
+      <ol className="dezent anleitung">
+        <li>Buch anlegen</li>
+        <li>
+          Zusammengehörige Seiten fotografieren (geht offline — Fotos werden
+          lokal gespeichert)
+        </li>
+        <li>Verarbeiten: Claude liest die Fotos und erstellt die Lernkarte</li>
+        <li>Karten nachbearbeiten, sortieren und filtern</li>
+        <li>Im Lernmodus mit Spaced Repetition üben</li>
+        <li>Buch als Datei exportieren und mit Freunden teilen</li>
+      </ol>
+      <p className="dezent">
+        Tipp fürs iPhone: In Safari über „Teilen → Zum Home-Bildschirm" wird
+        die App wie eine native App installiert.
+      </p>
+    </div>
+  );
+}
