@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import type { Ansicht } from "../App";
 import type { Buch, Karte, Lernstatus } from "../types";
 import { ladeBuch, ladeKarten } from "../db";
-import { exportiereBuch } from "../lib/exportImport";
+import { exportiereBuch, exportiereScans } from "../lib/exportImport";
 import { verarbeiteKarte } from "../lib/verarbeitung";
 import { istFaellig } from "../lib/srs";
 
@@ -128,15 +128,26 @@ export default function BuchAnsicht({
         <div className="hinweis-block">
           <p>
             {unverarbeitet.length} Scan{unverarbeitet.length > 1 ? "s" : ""}{" "}
-            wartet auf Verarbeitung (Internet nötig).
+            wartet auf Verarbeitung — hier per API-Key (Internet nötig) oder
+            als Datei exportieren und am PC über das Claude-Pro-Abo
+            verarbeiten.
           </p>
-          <button
-            className="knopf"
-            disabled={laufend !== null}
-            onClick={() => void alleVerarbeiten()}
-          >
-            {laufend ? "Verarbeite…" : "🤖 Jetzt verarbeiten"}
-          </button>
+          <div className="knopfzeile">
+            <button
+              className="knopf"
+              disabled={laufend !== null}
+              onClick={() => void alleVerarbeiten()}
+            >
+              {laufend ? "Verarbeite…" : "🤖 Hier verarbeiten"}
+            </button>
+            <button
+              className="knopf-sekundaer"
+              disabled={laufend !== null}
+              onClick={() => void exportiereScans(buch)}
+            >
+              💻 Scans für PC exportieren
+            </button>
+          </div>
         </div>
       )}
       {fehler && (

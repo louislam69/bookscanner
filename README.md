@@ -25,21 +25,44 @@ Export/Import zum Teilen. Umsetzung der Spezifikation
   Teilen-Menü (AirDrop etc.), am PC als Download; Import mit
   Dubletten-Erkennung. **Export-Dateien enthalten niemals Zugangsdaten.**
 
-## Abweichung von der Spezifikation (wichtig)
+## Zwei Wege der KI-Verarbeitung
 
 Die Spec sah die KI-Anbindung über das **Claude Agent SDK mit Abo-Login**
-vor. Das ist technisch nicht umsetzbar: Das Agent SDK ist eine
-Node.js-Bibliothek und läuft nicht im Browser, und der Abo-Login (Pro/Max)
-ist nicht in Web-Apps einbettbar. Da die App bewusst **ohne eigenen Server**
-auskommt, ist der in der Spec bereits genannte Fallback umgesetzt:
+vor. Das Agent SDK ist aber eine Node.js-Bibliothek und läuft nicht im
+Browser/auf dem iPhone — der Abo-Login (Pro/Max) ist nicht in Web-Apps
+einbettbar. Deshalb gibt es zwei Wege:
 
-> Normale Claude-API (Pay-per-Use) mit einem **API-Key**, der ausschließlich
-> lokal auf dem Gerät gespeichert wird (Anthropic-seitig offiziell
-> unterstützter Browser-Direktzugriff). Kosten für ein komplettes Buch:
-> realistisch wenige Cent bis niedriger einstelliger Euro-Betrag.
+### Weg 1: Über das Claude-Pro/Max-Abo (PC-Verarbeiter) — kein API-Key nötig
 
-Einen API-Key gibt es unter <https://platform.claude.com>. Er wird in den
-App-Einstellungen eingetragen.
+Der Ordner [`verarbeiter/`](verarbeiter/) enthält ein kleines PC-Tool, das
+das Agent SDK mit dem **Abo-Login** nutzt. Workflow:
+
+1. **Handy:** Seiten fotografieren (offline) → in der Buchansicht
+   **„💻 Scans für PC exportieren"** → Datei per AirDrop/Mail/Dateien-App an
+   den PC schicken
+2. **PC (einmalige Einrichtung):**
+   ```sh
+   # Node.js 18+ von nodejs.org installieren, dann:
+   npm install -g @anthropic-ai/claude-code
+   claude                # einmal starten und mit dem Claude-Konto einloggen
+   cd verarbeiter && npm install
+   ```
+3. **PC (pro Durchgang):**
+   ```sh
+   node verarbeite.mjs pfad/zur/buch-scans.json
+   ```
+   → erzeugt `…-verarbeitet.json`, läuft über das Abo-Guthaben
+4. **Handy:** Datei zurückschicken → in der App **„Datei importieren"** —
+   die Roh-Scans werden automatisch zu fertigen Karten (Fotos und
+   Zuordnung bleiben erhalten, Dubletten werden erkannt)
+
+### Weg 2: Direkt in der App (API-Key, Pay-per-Use)
+
+In den App-Einstellungen einen API-Key von <https://platform.claude.com>
+eintragen — dann verarbeitet die App direkt auf dem Gerät („🤖 Hier
+verarbeiten"). Der Key wird ausschließlich lokal gespeichert und ist in
+Export-Dateien niemals enthalten. Kosten für ein komplettes Buch:
+realistisch wenige Cent bis niedriger einstelliger Euro-Betrag.
 
 ## Entwicklung
 
@@ -57,13 +80,26 @@ npm run build && npx vite preview --port 4173 &
 node scripts/smoke.mjs
 ```
 
-## Nutzung auf dem iPhone
+## Installation auf dem iPhone
 
-1. Die gebaute App über HTTPS hosten (z. B. GitHub Pages, Netlify, oder ein
-   beliebiger statischer Webspace — es gibt keinerlei Server-Logik)
-2. Seite in Safari öffnen → Teilen → **„Zum Home-Bildschirm"**
-3. Die App startet dann im Vollbild, Fotografieren funktioniert offline;
-   nur der Verarbeitungsschritt braucht Internet
+Die App wird bei jedem Push automatisch über GitHub Actions auf **GitHub
+Pages** veröffentlicht (Workflow: `.github/workflows/pages.yml`; beim ersten
+Lauf muss in den Repo-Einstellungen unter *Settings → Pages* die Quelle
+„GitHub Actions" aktiv sein — der Workflow versucht das automatisch zu
+aktivieren).
+
+1. Auf dem iPhone in **Safari** öffnen:
+   `https://louislam69.github.io/bookscanner/`
+2. **Teilen-Symbol** (Viereck mit Pfeil) → **„Zum Home-Bildschirm"** →
+   **Hinzufügen**
+3. Die App liegt jetzt als Icon auf dem Home-Bildschirm und startet im
+   Vollbild. Fotografieren, Karten, Lernmodus — alles funktioniert offline
+   (Daten liegen in IndexedDB auf dem Gerät); nur „🤖 Hier verarbeiten"
+   braucht Internet.
+
+Wichtig: Immer über das installierte Icon starten (nicht über Safari), damit
+die Daten dauerhaft im selben Speicher liegen. Bei App-Updates genügt ein
+Neustart der App — der Service Worker aktualisiert sich selbst.
 
 ## Technik
 

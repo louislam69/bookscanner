@@ -42,8 +42,15 @@ export default function BuchListe({
     if (!datei) return;
     try {
       const ergebnis = await importiereDatei(datei);
+      const teile = [
+        ergebnis.importiert > 0 && `${ergebnis.importiert} Karten importiert`,
+        ergebnis.aktualisiert > 0 &&
+          `${ergebnis.aktualisiert} Scans zu fertigen Karten verarbeitet`,
+        ergebnis.uebersprungen > 0 &&
+          `${ergebnis.uebersprungen} Dubletten übersprungen`,
+      ].filter(Boolean);
       setMeldung(
-        `„${ergebnis.buchTitel}": ${ergebnis.importiert} Karten importiert, ${ergebnis.uebersprungen} Dubletten übersprungen.`,
+        `„${ergebnis.buchTitel}": ${teile.length ? teile.join(", ") : "keine neuen Karten"}.`,
       );
       aktualisiere();
     } catch (fehler) {

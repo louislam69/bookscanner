@@ -1,0 +1,14 @@
+{
+  "name": "buch-lernkarten-verarbeiter",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Verarbeitet exportierte Buch-Scans über das Claude-Pro/Max-Abo (Agent SDK) zu Lernkarten",
+  "bin": { "verarbeite": "./verarbeite.mjs" },
+  "scripts": {
+    "verarbeite": "node verarbeite.mjs"
+  },
+  "dependencies": {
+    "@anthropic-ai/claude-agent-sdk": "^0.3.207"
+  }
+}

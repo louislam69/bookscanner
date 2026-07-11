@@ -2,7 +2,11 @@ import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 import { VitePWA } from "vite-plugin-pwa";
 
+// Für GitHub Pages wird BASE_PATH=/bookscanner/ gesetzt (siehe Workflow)
+const basis = process.env.BASE_PATH ?? "/";
+
 export default defineConfig({
+  base: basis,
   plugins: [
     react(),
     VitePWA({
@@ -14,7 +18,8 @@ export default defineConfig({
         description:
           "Buchseiten fotografieren und automatisch Lernkarten erstellen",
         lang: "de",
-        start_url: "/",
+        start_url: basis,
+        scope: basis,
         display: "standalone",
         background_color: "#f6f3ec",
         theme_color: "#2f5d50",

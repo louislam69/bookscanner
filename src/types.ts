@@ -60,6 +60,25 @@ export interface ExportDatei {
   karten: Omit<Karte, "buch_id" | "foto_ids">[];
 }
 
+/**
+ * Format der Scan-Datei für die Verarbeitung am PC über das Claude-Pro-Abo:
+ * unverarbeitete Scans samt Fotos (Base64-JPEG). Das PC-Tool (verarbeiter/)
+ * liest diese Datei, erstellt die Karten über das Agent SDK und schreibt
+ * eine normale Export-Datei zurück, die die App wieder importiert.
+ */
+export interface ScansExportDatei {
+  format: "buch-lernkarten-scans";
+  version: 1;
+  exportiert_am: string;
+  buch: { titel: string; autor: string };
+  kategorien: string[]; // vorhandene Kategorien, damit die KI sie wiederverwendet
+  scans: {
+    id: string; // Karten-ID — bleibt erhalten, damit der Import zuordnen kann
+    quelle_seiten: string;
+    fotos: string[]; // Base64-JPEG in Aufnahme-Reihenfolge
+  }[];
+}
+
 export function neueId(): string {
   return crypto.randomUUID();
 }

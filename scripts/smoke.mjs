@@ -1,6 +1,11 @@
+// End-zu-Ende-Rauchtest gegen den Produktions-Build (http://localhost:4173).
+// Start: npm run build && npx vite preview --port 4173 &  →  node scripts/smoke.mjs
 import { chromium } from "playwright";
+import { readFileSync } from "node:fs";
 
-const browser = await chromium.launch({ executablePath: "/opt/pw-browsers/chromium" });
+const browser = await chromium.launch({
+  executablePath: "/opt/pw-browsers/chromium",
+});
 const page = await browser.newPage({ viewport: { width: 390, height: 844 } });
 const fehler = [];
 page.on("pageerror", (e) => fehler.push("pageerror: " + e.message));
@@ -20,15 +25,9 @@ await page.click("text=Buch anlegen");
 await page.waitForSelector("text=Seiten scannen");
 console.log("2. Buchansicht:", (await page.textContent("h1")).trim());
 
-// Scan-Ansicht öffnen und zurück
-await page.click("text=📷 Seiten scannen");
-await page.waitForSelector("text=Foto aufnehmen");
-console.log("3. Scan-Ansicht ok");
-await page.click(".kopf .knopf-leise");
-await page.waitForSelector("text=Seiten scannen");
-
 // Foto-Upload simulieren: 1x1-PNG über den Datei-Input
 await page.click("text=📷 Seiten scannen");
+await page.waitForSelector("text=Foto aufnehmen");
 const png = Buffer.from(
   "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==",
   "base64",
@@ -39,52 +38,113 @@ await page.setInputFiles('input[type="file"][multiple]', {
   buffer: png,
 });
 await page.waitForSelector(".foto-kachel img");
-console.log("4. Foto hinzugefügt (verkleinert + Vorschau)");
+console.log("3. Foto hinzugefügt (verkleinert + Vorschau)");
 
 // Offline speichern (ohne KI)
 await page.fill('input[placeholder="z. B. 42-44"]', "12-14");
 await page.click("text=Nur speichern (offline)");
 await page.waitForSelector("text=Unverarbeiteter Scan");
-console.log("5. Roh-Scan gespeichert, wartet auf Verarbeitung");
+console.log("4. Roh-Scan gespeichert, wartet auf Verarbeitung");
 
-// Karte öffnen — Verarbeiten ohne API-Key muss sauberen Fehler zeigen
+// Verarbeiten ohne API-Key muss sauberen Fehler zeigen
 await page.click("text=Unverarbeiteter Scan");
-await page.waitForSelector("text=Jetzt verarbeiten");
-await page.click("text=Jetzt verarbeiten");
+await page.waitForSelector('button:has-text("Jetzt verarbeiten")');
+await page.click('button:has-text("Jetzt verarbeiten")');
 await page.waitForSelector("text=Kein API-Key hinterlegt");
-console.log("6. Fehlermeldung ohne API-Key korrekt");
+console.log("5. Fehlermeldung ohne API-Key korrekt");
+await page.click(".kopf .knopf-leise"); // zurück zur Buchansicht
 
-// Karte manuell ausfüllen und speichern
-await page.fill('.formular label:has-text("Titel") input', "Das Reizen");
-await page.fill(
-  '.formular label:has-text("Kernaussage") textarea',
-  "Beim Reizen zählt die Kartenstärke.",
-);
-await page.click("text=Speichern");
-await page.waitForSelector("text=✓ Gespeichert");
-console.log("7. Karte manuell bearbeitet und gespeichert");
+// --- Abo-Workflow: Scans exportieren → am PC verarbeiten → importieren ---
+const [download] = await Promise.all([
+  page.waitForEvent("download"),
+  page.click("text=💻 Scans für PC exportieren"),
+]);
+const scansDatei = JSON.parse(readFileSync(await download.path(), "utf8"));
+if (
+  scansDatei.format !== "buch-lernkarten-scans" ||
+  scansDatei.scans.length !== 1 ||
+  scansDatei.scans[0].fotos.length !== 1 ||
+  scansDatei.scans[0].quelle_seiten !== "12-14"
+) {
+  throw new Error(
+    "Scan-Export fehlerhaft: " + JSON.stringify(scansDatei).slice(0, 200),
+  );
+}
+console.log("6. Scan-Export für PC-Verarbeitung ok (inkl. Foto als Base64)");
+
+// Verarbeitete Datei simulieren (das erzeugt sonst verarbeiter/verarbeite.mjs)
+const verarbeitet = {
+  format: "buch-lernkarten-export",
+  version: 1,
+  exportiert_am: new Date().toISOString(),
+  buch: scansDatei.buch,
+  karten: [
+    {
+      id: scansDatei.scans[0].id,
+      titel: "Das Reizen richtig einschätzen",
+      kernaussage: "Vor dem Reizen Trümpfe zählen und Sitzposition beachten.",
+      stichpunkte: [
+        "Mindestens 5 Trümpfe",
+        "Position hinter dem Geber ist stark",
+      ],
+      kategorie: "Reizen",
+      tags: ["Taktik"],
+      quelle_seiten: "12-14",
+      wichtigkeit: 5,
+      lernstatus: "neu",
+      naechste_wiederholung_am: null,
+      wiederholungs_intervall: 0,
+      verarbeitet: true,
+      erstellt_am: new Date().toISOString(),
+      zuletzt_bearbeitet_am: new Date().toISOString(),
+    },
+  ],
+};
+await page.click(".kopf .knopf-leise"); // zurück zur Buchliste
+await page.setInputFiles('input[type="file"][accept*="json"]', {
+  name: "scans-verarbeitet.json",
+  mimeType: "application/json",
+  buffer: Buffer.from(JSON.stringify(verarbeitet)),
+});
+await page.waitForSelector("text=1 Scans zu fertigen Karten verarbeitet");
+console.log("7. Import der verarbeiteten Datei: Roh-Scan wurde aktualisiert");
+
+await page.click('.eintrag-haupt:has-text("Schafkopf für Gewinner")');
+await page.waitForSelector("text=Das Reizen richtig einschätzen");
+if (await page.locator("text=Unverarbeiteter Scan").count()) {
+  throw new Error("Roh-Scan wurde nicht in fertige Karte umgewandelt");
+}
+console.log("8. Karte ist fertig, Fotos blieben erhalten");
+
+// Lernmodus mit der fertigen Karte
+await page.click("text=🎓 Lernen");
+await page.waitForSelector('button:has-text("Aufdecken")');
+await page.click('button:has-text("Aufdecken")');
+await page.click("text=✓ Wusste ich sofort");
+await page.waitForSelector("text=🎉");
+console.log("9. Lernmodus: Karte wiederholt, Sitzung abgeschlossen");
+await page.click("text=Zurück zum Buch");
+await page.click(".kopf .knopf-leise");
 
 // Einstellungen
-await page.click(".kopf .knopf-leise"); // zurück zum Buch
-await page.click(".kopf .knopf-leise"); // zurück zur Liste
 await page.click("text=⚙️");
 await page.waitForSelector("text=Anthropic-API-Key");
 await page.fill('input[type="password"]', "sk-ant-test123");
 await page.click("text=Speichern");
 await page.waitForSelector("text=✓ Gespeichert");
-console.log("8. Einstellungen gespeichert");
+console.log("10. Einstellungen gespeichert");
 
 // Reload: Persistenz prüfen
 await page.reload();
 await page.waitForSelector("text=Schafkopf für Gewinner");
-console.log("9. Persistenz nach Reload ok (IndexedDB)");
+console.log("11. Persistenz nach Reload ok (IndexedDB)");
 
 // Manifest / SW vorhanden?
 const manifest = await page.evaluate(async () => {
   const r = await fetch("/manifest.webmanifest");
   return (await r.json()).name;
 });
-console.log("10. PWA-Manifest:", manifest);
+console.log("12. PWA-Manifest:", manifest);
 
 const relevanteFehler = fehler.filter((f) => !f.includes("favicon"));
 if (relevanteFehler.length) {
