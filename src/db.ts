@@ -76,10 +76,14 @@ export async function ladeEinstellungen(): Promise<Einstellungen> {
   return {
     apiKey: (await d.get("einstellungen", "apiKey")) ?? "",
     modell: (await d.get("einstellungen", "modell")) ?? STANDARD_MODELL,
+    githubToken: (await d.get("einstellungen", "githubToken")) ?? "",
+    githubRepo: (await d.get("einstellungen", "githubRepo")) ?? "",
   };
 }
 export async function speichereEinstellungen(e: Einstellungen) {
   const d = await db();
   await d.put("einstellungen", e.apiKey, "apiKey");
   await d.put("einstellungen", e.modell, "modell");
+  await d.put("einstellungen", e.githubToken, "githubToken");
+  await d.put("einstellungen", e.githubRepo, "githubRepo");
 }

@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useState } from "react";
 import type { Ansicht } from "../App";
 import type { Buch, Karte, Lernstatus } from "../types";
-import { ladeBuch, ladeKarten } from "../db";
+import { ladeBuch, ladeEinstellungen, ladeKarten } from "../db";
 import { exportiereBuch, exportiereScans } from "../lib/exportImport";
+import { ladeScansHoch } from "../lib/github";
 import { verarbeiteKarte } from "../lib/verarbeitung";
 import { istFaellig } from "../lib/srs";
 
@@ -28,12 +29,20 @@ export default function BuchAnsicht({
   const [statusFilter, setStatusFilter] = useState<"" | Lernstatus>("");
   const [laufend, setLaufend] = useState<string | null>(null);
   const [fehler, setFehler] = useState("");
+  const [meldung, setMeldung] = useState("");
+  const [cloudAktiv, setCloudAktiv] = useState(false);
+  const [laedtHoch, setLaedtHoch] = useState(false);
 
   const aktualisiere = () => {
     void ladeBuch(buchId).then((b) => setBuch(b ?? null));
     void ladeKarten(buchId).then(setKarten);
   };
   useEffect(aktualisiere, [buchId]);
+  useEffect(() => {
+    void ladeEinstellungen().then((e) =>
+      setCloudAktiv(!!(e.githubToken && e.githubRepo)),
+    );
+  }, []);
 
   const kategorien = useMemo(
     () => [...new Set(karten.map((k) => k.kategorie).filter(Boolean))].sort(),
@@ -128,13 +137,40 @@ export default function BuchAnsicht({
         <div className="hinweis-block">
           <p>
             {unverarbeitet.length} Scan{unverarbeitet.length > 1 ? "s" : ""}{" "}
-            wartet auf Verarbeitung — hier per API-Key (Internet nötig) oder
-            als Datei exportieren und am PC über das Claude-Pro-Abo
-            verarbeiten.
+            wartet auf Verarbeitung — über die Cloud (PC mit Pro-Abo holt sie
+            sich automatisch), hier per API-Key oder als Datei-Export.
           </p>
           <div className="knopfzeile">
+            {cloudAktiv && (
+              <button
+                className="knopf"
+                disabled={laufend !== null || laedtHoch}
+                onClick={async () => {
+                  if (!buch) return;
+                  setFehler("");
+                  setMeldung("");
+                  setLaedtHoch(true);
+                  try {
+                    const einstellungen = await ladeEinstellungen();
+                    const n = await ladeScansHoch(buch, einstellungen);
+                    if (n > 0) {
+                      setMeldung(
+                        `${n} Scan(s) hochgeladen. Am PC verarbeitet sie „node sync.mjs" — die fertigen Karten erscheinen hier beim nächsten App-Start automatisch.`,
+                      );
+                    }
+                    aktualisiere();
+                  } catch (f) {
+                    setFehler((f as Error).message);
+                  } finally {
+                    setLaedtHoch(false);
+                  }
+                }}
+              >
+                {laedtHoch ? "☁️ Lädt hoch…" : "☁️ In Cloud hochladen"}
+              </button>
+            )}
             <button
-              className="knopf"
+              className={cloudAktiv ? "knopf-sekundaer" : "knopf"}
               disabled={laufend !== null}
               onClick={() => void alleVerarbeiten()}
             >
@@ -145,10 +181,15 @@ export default function BuchAnsicht({
               disabled={laufend !== null}
               onClick={() => void exportiereScans(buch)}
             >
-              💻 Scans für PC exportieren
+              💾 Als Datei exportieren
             </button>
           </div>
         </div>
+      )}
+      {meldung && (
+        <p className="hinweis" onClick={() => setMeldung("")}>
+          {meldung}
+        </p>
       )}
       {fehler && (
         <p className="fehler" onClick={() => setFehler("")}>

@@ -24,6 +24,7 @@ export interface Karte {
   wiederholungs_intervall: number; // Tage, intern für Spaced Repetition
   foto_ids: string[]; // Referenzen auf Original-Fotos
   verarbeitet: boolean; // false = Roh-Scan, wartet auf KI-Verarbeitung
+  hochgeladen?: boolean; // Roh-Scan wurde bereits in die Cloud hochgeladen
   erstellt_am: string;
   zuletzt_bearbeitet_am: string;
 }
@@ -38,6 +39,10 @@ export interface Foto {
 export interface Einstellungen {
   apiKey: string;
   modell: string;
+  /** Fine-grained GitHub-Token für das private Austausch-Repo (optional) */
+  githubToken: string;
+  /** Privates Austausch-Repo im Format "besitzer/name" (optional) */
+  githubRepo: string;
 }
 
 /** Antwortstruktur der KI-Kartenerstellung */

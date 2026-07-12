@@ -5,8 +5,16 @@ import { readFileSync } from "node:fs";
 
 const browser = await chromium.launch({
   executablePath: "/opt/pw-browsers/chromium",
+  args: [
+    "--use-fake-ui-for-media-stream",
+    "--use-fake-device-for-media-stream",
+  ],
 });
-const page = await browser.newPage({ viewport: { width: 390, height: 844 } });
+const kontext = await browser.newContext({
+  viewport: { width: 390, height: 844 },
+  permissions: ["camera"],
+});
+const page = await kontext.newPage();
 const fehler = [];
 page.on("pageerror", (e) => fehler.push("pageerror: " + e.message));
 page.on("console", (m) => {
@@ -25,9 +33,20 @@ await page.click("text=Buch anlegen");
 await page.waitForSelector("text=Seiten scannen");
 console.log("2. Buchansicht:", (await page.textContent("h1")).trim());
 
-// Foto-Upload simulieren: 1x1-PNG über den Datei-Input
+// Dokumentenscanner: Live-Kamera (Fake-Device), OpenCV lädt, Auslöser
 await page.click("text=📷 Seiten scannen");
-await page.waitForSelector("text=Foto aufnehmen");
+await page.waitForSelector("text=Scanner (Seite automatisch erkennen)");
+await page.click("text=Scanner (Seite automatisch erkennen)");
+await page.waitForSelector(".scanner-ausloeser:not([disabled])", {
+  timeout: 60000, // OpenCV (~13 MB) muss beim ersten Mal laden
+});
+await page.click(".scanner-ausloeser");
+await page.waitForSelector("text=Fertig (1)");
+await page.click("text=Fertig (1)");
+await page.waitForSelector(".foto-kachel img");
+console.log("2b. Scanner: Kamera lief, Foto ausgelöst und übernommen");
+// Scanner-Foto wieder entfernen, damit der Rest des Tests unverändert bleibt
+await page.click(".foto-kachel .knopf-leise");
 const png = Buffer.from(
   "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==",
   "base64",
@@ -57,7 +76,7 @@ await page.click(".kopf .knopf-leise"); // zurück zur Buchansicht
 // --- Abo-Workflow: Scans exportieren → am PC verarbeiten → importieren ---
 const [download] = await Promise.all([
   page.waitForEvent("download"),
-  page.click("text=💻 Scans für PC exportieren"),
+  page.click("text=💾 Als Datei exportieren"),
 ]);
 const scansDatei = JSON.parse(readFileSync(await download.path(), "utf8"));
 if (

@@ -2,8 +2,9 @@ import { useEffect, useRef, useState } from "react";
 import type { Ansicht } from "../App";
 import type { Buch } from "../types";
 import { jetzt, neueId } from "../types";
-import { ladeBuecher, loescheBuch, speichereBuch } from "../db";
+import { ladeBuecher, ladeEinstellungen, loescheBuch, speichereBuch } from "../db";
 import { importiereDatei } from "../lib/exportImport";
+import { holeVerarbeitete } from "../lib/github";
 
 export default function BuchListe({
   navigiere,
@@ -15,10 +16,42 @@ export default function BuchListe({
   const [titel, setTitel] = useState("");
   const [autor, setAutor] = useState("");
   const [meldung, setMeldung] = useState("");
+  const [cloudAktiv, setCloudAktiv] = useState(false);
+  const [cloudLaeuft, setCloudLaeuft] = useState(false);
   const importRef = useRef<HTMLInputElement>(null);
 
   const aktualisiere = () => void ladeBuecher().then(setBuecher);
   useEffect(aktualisiere, []);
+
+  async function cloudAbholen(still: boolean) {
+    setCloudLaeuft(true);
+    try {
+      const einstellungen = await ladeEinstellungen();
+      const e = await holeVerarbeitete(einstellungen);
+      if (e.aktualisiert || e.importiert) {
+        setMeldung(
+          `☁️ ${e.aktualisiert + e.importiert} fertige Karte(n) aus der Cloud übernommen.`,
+        );
+        aktualisiere();
+      } else if (!still) {
+        setMeldung("☁️ Keine fertigen Karten in der Cloud gefunden.");
+      }
+    } catch (fehler) {
+      if (!still) setMeldung((fehler as Error).message);
+    } finally {
+      setCloudLaeuft(false);
+    }
+  }
+
+  // Beim App-Start automatisch nach fertigen Karten in der Cloud schauen
+  useEffect(() => {
+    void ladeEinstellungen().then((e) => {
+      const aktiv = !!(e.githubToken && e.githubRepo);
+      setCloudAktiv(aktiv);
+      if (aktiv && navigator.onLine) void cloudAbholen(true);
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   async function anlegen(e: React.FormEvent) {
     e.preventDefault();
@@ -151,6 +184,15 @@ export default function BuchListe({
           <button className="knopf" onClick={() => setZeigeFormular(true)}>
             ＋ Neues Buch
           </button>
+          {cloudAktiv && (
+            <button
+              className="knopf-sekundaer"
+              disabled={cloudLaeuft}
+              onClick={() => void cloudAbholen(false)}
+            >
+              {cloudLaeuft ? "☁️ Prüft…" : "☁️ Cloud abholen"}
+            </button>
+          )}
           <button
             className="knopf-sekundaer"
             onClick={() => importRef.current?.click()}

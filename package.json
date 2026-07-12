@@ -20,6 +20,7 @@
   "homepage": "https://github.com/louislam69/bookscanner#readme",
   "dependencies": {
     "@anthropic-ai/sdk": "^0.110.0",
+    "@techstark/opencv-js": "^5.0.0-release.1",
     "idb": "^8.0.3",
     "react": "^19.2.7",
     "react-dom": "^19.2.7"

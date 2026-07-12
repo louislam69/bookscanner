@@ -9,8 +9,11 @@ Export/Import zum Teilen. Umsetzung der Spezifikation
 ## Funktionsumfang
 
 - **Bücher anlegen** (Titel, Autor)
-- **Seiten fotografieren** — iPhone-Kamera oder Datei-Upload, funktioniert
-  offline; Fotos werden verkleinert und lokal in IndexedDB gespeichert
+- **Seiten fotografieren** — mit Dokumentenscanner: Live-Kamera mit
+  automatischer Seitenerkennung und perspektivischer Entzerrung (OpenCV,
+  läuft komplett auf dem Gerät); alternativ einfaches Foto oder
+  Datei-Upload. Funktioniert offline; Fotos werden verkleinert und lokal in
+  IndexedDB gespeichert
 - **Fotos gruppieren** — alle Fotos eines Abschnitts (z. B. die 3 Seiten einer
   Taktik) werden zu einer Karten-Einheit
 - **KI-Verarbeitung** — Claude liest die Fotos direkt (kein OCR-Schritt) und
@@ -32,29 +35,50 @@ vor. Das Agent SDK ist aber eine Node.js-Bibliothek und läuft nicht im
 Browser/auf dem iPhone — der Abo-Login (Pro/Max) ist nicht in Web-Apps
 einbettbar. Deshalb gibt es zwei Wege:
 
-### Weg 1: Über das Claude-Pro/Max-Abo (PC-Verarbeiter) — kein API-Key nötig
+### Weg 1: Über das Claude-Pro/Max-Abo (PC) — kein API-Key nötig
 
-Der Ordner [`verarbeiter/`](verarbeiter/) enthält ein kleines PC-Tool, das
-das Agent SDK mit dem **Abo-Login** nutzt. Workflow:
+Der Ordner [`verarbeiter/`](verarbeiter/) enthält die PC-Tools, die das
+Agent SDK mit dem **Abo-Login** nutzen.
 
-1. **Handy:** Seiten fotografieren (offline) → in der Buchansicht
-   **„💻 Scans für PC exportieren"** → Datei per AirDrop/Mail/Dateien-App an
-   den PC schicken
-2. **PC (einmalige Einrichtung):**
-   ```sh
-   # Node.js 18+ von nodejs.org installieren, dann:
-   npm install -g @anthropic-ai/claude-code
-   claude                # einmal starten und mit dem Claude-Konto einloggen
-   cd verarbeiter && npm install
-   ```
-3. **PC (pro Durchgang):**
-   ```sh
-   node verarbeite.mjs pfad/zur/buch-scans.json
-   ```
-   → erzeugt `…-verarbeitet.json`, läuft über das Abo-Guthaben
-4. **Handy:** Datei zurückschicken → in der App **„Datei importieren"** —
-   die Roh-Scans werden automatisch zu fertigen Karten (Fotos und
-   Zuordnung bleiben erhalten, Dubletten werden erkannt)
+**Einmalige PC-Einrichtung:**
+
+```sh
+# Node.js 18+ von nodejs.org installieren, dann:
+npm install -g @anthropic-ai/claude-code
+claude                # einmal starten und mit dem Claude-Konto einloggen
+cd verarbeiter && npm install
+```
+
+**Variante A — Cloud-Austausch (empfohlen, kein Dateien-Verschicken):**
+
+Einmalig einrichten: auf github.com ein neues **privates** Repo anlegen
+(z. B. `lernkarten-daten` — privat, weil dort Buchfotos liegen!), dazu unter
+*Settings → Developer settings → Fine-grained tokens* ein Token nur für
+dieses Repo mit *Contents: Read and write* erstellen. Token + Repo-Name in
+den **App-Einstellungen** eintragen und am PC in `verarbeiter/konfig.json`:
+
+```json
+{ "token": "github_pat_…", "repo": "louislam69/lernkarten-daten" }
+```
+
+Ablauf danach:
+
+1. **Handy:** Seiten scannen → **„☁️ In Cloud hochladen"**
+2. **PC:** `node sync.mjs` (oder dauerhaft laufen lassen:
+   `node sync.mjs --dauerbetrieb`) — holt die Scans, verarbeitet sie über
+   das Abo und legt die fertigen Karten wieder ins Repo
+3. **Handy:** App öffnen — fertige Karten werden **automatisch** abgeholt
+   und die Cloud aufgeräumt
+
+**Variante B — per Datei (ohne GitHub-Einrichtung):**
+
+1. **Handy:** Buchansicht → **„💾 Als Datei exportieren"** → per
+   AirDrop/Mail/Dateien-App an den PC
+2. **PC:** `node verarbeite.mjs pfad/zur/buch-scans.json` → erzeugt
+   `…-verarbeitet.json`
+3. **Handy:** Datei zurückschicken → **„Datei importieren"** — die
+   Roh-Scans werden zu fertigen Karten (Fotos bleiben erhalten, Dubletten
+   werden erkannt)
 
 ### Weg 2: Direkt in der App (API-Key, Pay-per-Use)
 

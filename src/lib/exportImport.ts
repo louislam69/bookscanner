@@ -66,13 +66,17 @@ export async function exportiereBuch(buch: Buch): Promise<void> {
 
 // --- Roh-Scans exportieren (zur Verarbeitung am PC über das Pro-Abo) ---
 
-export async function exportiereScans(buch: Buch): Promise<number> {
-  const karten = await ladeKarten(buch.id);
-  const unverarbeitet = karten.filter((k) => !k.verarbeitet);
-  if (unverarbeitet.length === 0) return 0;
+export async function erstelleScansDaten(
+  buch: Buch,
+  nurNeue = false,
+): Promise<{ daten: ScansExportDatei; karten: Karte[] }> {
+  const alle = await ladeKarten(buch.id);
+  const auswahl = alle.filter(
+    (k) => !k.verarbeitet && (!nurNeue || !k.hochgeladen),
+  );
 
   const scans = await Promise.all(
-    unverarbeitet.map(async (karte) => {
+    auswahl.map(async (karte) => {
       const fotos = await ladeFotos(karte.id);
       return {
         id: karte.id,
@@ -82,18 +86,26 @@ export async function exportiereScans(buch: Buch): Promise<number> {
     }),
   );
 
-  const daten: ScansExportDatei = {
-    format: "buch-lernkarten-scans",
-    version: 1,
-    exportiert_am: jetzt(),
-    buch: { titel: buch.titel, autor: buch.autor },
-    kategorien: [
-      ...new Set(karten.map((k) => k.kategorie).filter(Boolean)),
-    ].sort(),
-    scans,
+  return {
+    daten: {
+      format: "buch-lernkarten-scans",
+      version: 1,
+      exportiert_am: jetzt(),
+      buch: { titel: buch.titel, autor: buch.autor },
+      kategorien: [
+        ...new Set(alle.map((k) => k.kategorie).filter(Boolean)),
+      ].sort(),
+      scans,
+    },
+    karten: auswahl,
   };
+}
+
+export async function exportiereScans(buch: Buch): Promise<number> {
+  const { daten } = await erstelleScansDaten(buch);
+  if (daten.scans.length === 0) return 0;
   await teileOderLadeDatei(JSON.stringify(daten), dateiname(buch, "scans"));
-  return unverarbeitet.length;
+  return daten.scans.length;
 }
 
 // --- Import (fertige Karten von Freunden oder vom PC-Verarbeiter) ---
@@ -117,6 +129,12 @@ export async function importiereDatei(datei: File): Promise<ImportErgebnis> {
       "Das ist eine Scan-Datei für die Verarbeitung am PC. Bitte die vom Verarbeiter erzeugte Datei (…-verarbeitet.json) importieren.",
     );
   }
+  return importiereExportDaten(daten);
+}
+
+export async function importiereExportDaten(
+  daten: ExportDatei,
+): Promise<ImportErgebnis> {
   if (daten.format !== "buch-lernkarten-export" || !Array.isArray(daten.karten)) {
     throw new Error("Die Datei ist keine Buch-Lernkarten-Exportdatei.");
   }

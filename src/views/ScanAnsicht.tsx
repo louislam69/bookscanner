@@ -5,6 +5,7 @@ import { jetzt, neueId } from "../types";
 import { ladeBuch, speichereFoto, speichereKarte } from "../db";
 import { blobZuObjektUrl, verkleinereFoto } from "../lib/bild";
 import { verarbeiteKarte } from "../lib/verarbeitung";
+import ScannerKamera from "./ScannerKamera";
 
 /**
  * Foto-Erfassung (Spec Abschnitt 3, Schritte 2-4): Fotos aufnehmen oder
@@ -25,6 +26,7 @@ export default function ScanAnsicht({
     "bereit",
   );
   const [fehler, setFehler] = useState("");
+  const [scannerOffen, setScannerOffen] = useState(false);
   const kameraRef = useRef<HTMLInputElement>(null);
   const dateiRef = useRef<HTMLInputElement>(null);
 
@@ -135,8 +137,14 @@ export default function ScanAnsicht({
       </p>
 
       <div className="knopfzeile">
-        <button className="knopf" onClick={() => kameraRef.current?.click()}>
-          📷 Foto aufnehmen
+        <button className="knopf" onClick={() => setScannerOffen(true)}>
+          📸 Scanner (Seite automatisch erkennen)
+        </button>
+        <button
+          className="knopf-sekundaer"
+          onClick={() => kameraRef.current?.click()}
+        >
+          📷 Einfaches Foto
         </button>
         <button
           className="knopf-sekundaer"
@@ -216,6 +224,17 @@ export default function ScanAnsicht({
       )}
 
       {fehler && <p className="fehler">{fehler}</p>}
+
+      {scannerOffen && (
+        <ScannerKamera
+          beiFoto={(blob) => {
+            void verkleinereFoto(blob).then((klein) =>
+              setFotos((alt) => [...alt, { blob: klein, url: blobZuObjektUrl(klein) }]),
+            );
+          }}
+          beiSchliessen={() => setScannerOffen(false)}
+        />
+      )}
     </div>
   );
 }

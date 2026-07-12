@@ -34,7 +34,9 @@ export default defineConfig({
         ],
       },
       workbox: {
-        maximumFileSizeToCacheInBytes: 6 * 1024 * 1024,
+        // OpenCV.js (~13 MB, für die Seitenerkennung) mit vorab cachen,
+        // damit der Scanner auch offline funktioniert
+        maximumFileSizeToCacheInBytes: 20 * 1024 * 1024,
         // API-Aufrufe an Anthropic niemals über den Service Worker cachen
         navigateFallbackDenylist: [/^\/api/],
       },

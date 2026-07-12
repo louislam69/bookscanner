@@ -15,17 +15,26 @@ export default function EinstellungenAnsicht({
 }) {
   const [apiKey, setApiKey] = useState("");
   const [modell, setModell] = useState(STANDARD_MODELL);
+  const [githubToken, setGithubToken] = useState("");
+  const [githubRepo, setGithubRepo] = useState("");
   const [gespeichert, setGespeichert] = useState(false);
 
   useEffect(() => {
     void ladeEinstellungen().then((e) => {
       setApiKey(e.apiKey);
       setModell(e.modell);
+      setGithubToken(e.githubToken);
+      setGithubRepo(e.githubRepo);
     });
   }, []);
 
   async function speichern() {
-    await speichereEinstellungen({ apiKey: apiKey.trim(), modell });
+    await speichereEinstellungen({
+      apiKey: apiKey.trim(),
+      modell,
+      githubToken: githubToken.trim(),
+      githubRepo: githubRepo.trim(),
+    });
     setGespeichert(true);
   }
 
@@ -74,6 +83,45 @@ export default function EinstellungenAnsicht({
               </option>
             ))}
           </select>
+        </label>
+
+        <h2 className="abschnitt">☁️ Cloud-Austausch mit dem PC (Pro-Abo)</h2>
+        <p className="dezent">
+          Damit landen Scans automatisch in einem <strong>privaten</strong>{" "}
+          GitHub-Repo, der PC verarbeitet sie über dein Claude-Pro-Abo, und
+          die fertigen Karten erscheinen hier von selbst. Einrichtung: (1) auf
+          github.com ein neues <strong>privates</strong> Repo anlegen (z. B.
+          „lernkarten-daten"), (2) unter{" "}
+          <em>Settings → Developer settings → Fine-grained tokens</em> ein
+          Token nur für dieses Repo mit der Berechtigung{" "}
+          <em>Contents: Read and write</em> erstellen, (3) beides hier und in
+          der Datei <code>verarbeiter/konfig.json</code> am PC eintragen.
+        </p>
+        <label>
+          Privates Austausch-Repo (besitzer/name)
+          <input
+            value={githubRepo}
+            onChange={(e) => {
+              setGithubRepo(e.target.value);
+              setGespeichert(false);
+            }}
+            placeholder="louislam69/lernkarten-daten"
+            autoCapitalize="none"
+            autoCorrect="off"
+          />
+        </label>
+        <label>
+          GitHub-Token
+          <input
+            type="password"
+            value={githubToken}
+            onChange={(e) => {
+              setGithubToken(e.target.value);
+              setGespeichert(false);
+            }}
+            placeholder="github_pat_…"
+            autoComplete="off"
+          />
         </label>
       </div>
 
