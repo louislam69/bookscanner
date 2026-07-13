@@ -79,6 +79,60 @@ function textZuBase64(text: string): string {
   return btoa(binaer);
 }
 
+// --- Verbindungstest (Einstellungen) ---
+
+/**
+ * Prüft die Cloud-Konfiguration End-zu-Ende: Repo erreichbar, Token gültig,
+ * Schreibrecht vorhanden (legt kurz eine Testdatei an und löscht sie wieder).
+ * Liefert eine Erfolgsmeldung oder wirft einen verständlichen Fehler.
+ */
+export async function pruefeCloudVerbindung(
+  einstellungen: Einstellungen,
+): Promise<string> {
+  pruefeKonfiguration(einstellungen);
+
+  const repo = await anfrage(einstellungen, "");
+  if (repo.status === 404) {
+    throw new Error(
+      `Repo "${einstellungen.githubRepo}" nicht gefunden. Gibt es das Repo, ist der Name exakt richtig geschrieben, und ist es beim Token unter „Only select repositories" ausgewählt?`,
+    );
+  }
+  if (!repo.ok) {
+    throw new Error(`Repo-Abruf fehlgeschlagen (HTTP ${repo.status}).`);
+  }
+  const info = (await repo.json()) as { private: boolean };
+
+  // Schreibtest: Datei anlegen und gleich wieder löschen
+  const testPfad = "verbindungstest.json";
+  const anlegen = await anfrage(einstellungen, `/contents/${testPfad}`, {
+    method: "PUT",
+    body: JSON.stringify({
+      message: "Verbindungstest der Lernkarten-App",
+      content: textZuBase64(JSON.stringify({ test: jetzt() })),
+    }),
+  });
+  if (anlegen.status === 404 || anlegen.status === 409 || anlegen.status === 422) {
+    throw new Error(
+      "Lesen klappt, aber Schreiben nicht. Hat das Token die Berechtigung „Contents: Read and write“ (nicht nur Read-only)?",
+    );
+  }
+  if (!anlegen.ok) {
+    throw new Error(`Schreibtest fehlgeschlagen (HTTP ${anlegen.status}).`);
+  }
+  const angelegt = (await anlegen.json()) as { content: { sha: string } };
+  await anfrage(einstellungen, `/contents/${testPfad}`, {
+    method: "DELETE",
+    body: JSON.stringify({
+      message: "Verbindungstest aufgeräumt",
+      sha: angelegt.content.sha,
+    }),
+  });
+
+  return info.private
+    ? "✓ Verbindung steht: Lesen und Schreiben funktionieren, das Repo ist privat."
+    : "✓ Verbindung steht — ABER das Repo ist ÖFFENTLICH! Bitte auf privat stellen, sonst sind deine Buchfotos für jeden sichtbar.";
+}
+
 // --- Scans hochladen (Handy → Cloud) ---
 
 export async function ladeScansHoch(

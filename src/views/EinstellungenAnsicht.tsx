@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import type { Ansicht } from "../App";
 import { ladeEinstellungen, speichereEinstellungen, STANDARD_MODELL } from "../db";
+import { pruefeCloudVerbindung } from "../lib/github";
 
 const MODELLE = [
   { id: "claude-opus-4-8", name: "Claude Opus 4.8 (beste Qualität)" },
@@ -18,6 +19,8 @@ export default function EinstellungenAnsicht({
   const [githubToken, setGithubToken] = useState("");
   const [githubRepo, setGithubRepo] = useState("");
   const [gespeichert, setGespeichert] = useState(false);
+  const [testLaeuft, setTestLaeuft] = useState(false);
+  const [testErgebnis, setTestErgebnis] = useState("");
 
   useEffect(() => {
     void ladeEinstellungen().then((e) => {
@@ -129,7 +132,32 @@ export default function EinstellungenAnsicht({
         <button className="knopf" onClick={() => void speichern()}>
           {gespeichert ? "✓ Gespeichert" : "Speichern"}
         </button>
+        <button
+          className="knopf-sekundaer"
+          disabled={testLaeuft}
+          onClick={async () => {
+            setTestErgebnis("");
+            setTestLaeuft(true);
+            try {
+              // erst speichern, dann mit dem gespeicherten Stand testen
+              await speichern();
+              const einstellungen = await ladeEinstellungen();
+              setTestErgebnis(await pruefeCloudVerbindung(einstellungen));
+            } catch (fehler) {
+              setTestErgebnis(`✗ ${(fehler as Error).message}`);
+            } finally {
+              setTestLaeuft(false);
+            }
+          }}
+        >
+          {testLaeuft ? "☁️ Teste…" : "☁️ Verbindung testen"}
+        </button>
       </div>
+      {testErgebnis && (
+        <p className={testErgebnis.startsWith("✓") ? "hinweis" : "fehler"}>
+          {testErgebnis}
+        </p>
+      )}
 
       <h2 className="abschnitt">So funktioniert die App</h2>
       <ol className="dezent anleitung">

@@ -148,10 +148,15 @@ await page.click(".kopf .knopf-leise");
 // Einstellungen
 await page.click("text=⚙️");
 await page.waitForSelector("text=Anthropic-API-Key");
-await page.fill('input[type="password"]', "sk-ant-test123");
+await page.fill('input[placeholder="sk-ant-…"]', "sk-ant-test123");
 await page.click("text=Speichern");
 await page.waitForSelector("text=✓ Gespeichert");
 console.log("10. Einstellungen gespeichert");
+
+// Cloud-Verbindungstest ohne Konfiguration → klare Meldung
+await page.click("text=☁️ Verbindung testen");
+await page.waitForSelector("text=Cloud-Austausch ist nicht eingerichtet");
+console.log("10b. Verbindungstest meldet fehlende Cloud-Konfiguration korrekt");
 
 // Reload: Persistenz prüfen
 await page.reload();
