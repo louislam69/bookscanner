@@ -12,6 +12,18 @@ if errorlevel 1 (
     exit /b 1
 )
 
+if not exist sync.mjs (
+    echo FEHLER: sync.mjs nicht gefunden.
+    echo.
+    echo Diese Datei muss im Ordner "verarbeiter" liegen ^(neben sync.mjs
+    echo und konfig.json^). Nicht die BAT-Datei auf den Desktop kopieren --
+    echo stattdessen: Rechtsklick auf sync.bat im verarbeiter-Ordner
+    echo und "Senden an" -^> "Desktop (Verknuepfung erstellen)".
+    echo.
+    pause
+    exit /b 1
+)
+
 node sync.mjs
 echo.
 echo ------------------------------------------------------------
