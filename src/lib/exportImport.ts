@@ -86,6 +86,12 @@ export async function erstelleScansDaten(
     }),
   );
 
+  if (scans.some((s) => s.fotos.length === 0)) {
+    throw new Error(
+      "Mindestens ein Scan hat keine lesbaren Fotos mehr (ein iOS-Speicherfehler hat sie beschädigt). Bitte diesen Scan in der Liste öffnen, löschen und die Seiten neu fotografieren — neue Scans sind davon nicht mehr betroffen.",
+    );
+  }
+
   return {
     daten: {
       format: "buch-lernkarten-scans",

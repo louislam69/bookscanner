@@ -1,6 +1,21 @@
 import { openDB, type DBSchema, type IDBPDatabase } from "idb";
 import type { Buch, Einstellungen, Foto, Karte } from "./types";
 
+/**
+ * Fotos werden als ArrayBuffer gespeichert, nicht als Blob: iOS-Safari
+ * verliert Blobs in IndexedDB gelegentlich („The object can not be found
+ * here."). `blob`/ohne-`daten` ist das Altformat, das beim Lesen
+ * automatisch migriert wird.
+ */
+interface FotoDatensatz {
+  id: string;
+  karte_id: string;
+  reihenfolge: number;
+  daten?: ArrayBuffer;
+  typ?: string;
+  blob?: Blob; // Altformat
+}
+
 interface LernkartenDB extends DBSchema {
   buecher: { key: string; value: Buch };
   karten: {
@@ -10,7 +25,7 @@ interface LernkartenDB extends DBSchema {
   };
   fotos: {
     key: string;
-    value: Foto;
+    value: FotoDatensatz;
     indexes: { "nach-karte": string };
   };
   einstellungen: { key: string; value: string };
@@ -60,12 +75,54 @@ export async function loescheKarte(id: string) {
 }
 
 // --- Fotos ---
-export const speichereFoto = async (foto: Foto) => {
-  await (await db()).put("fotos", foto);
-};
-export async function ladeFotos(karteId: string) {
-  const fotos = await (await db()).getAllFromIndex("fotos", "nach-karte", karteId);
-  return fotos.sort((a, b) => a.reihenfolge - b.reihenfolge);
+export async function speichereFoto(foto: Foto) {
+  const daten = await foto.blob.arrayBuffer();
+  await (await db()).put("fotos", {
+    id: foto.id,
+    karte_id: foto.karte_id,
+    reihenfolge: foto.reihenfolge,
+    daten,
+    typ: foto.blob.type || "image/jpeg",
+  });
+}
+
+export async function ladeFotos(karteId: string): Promise<Foto[]> {
+  const d = await db();
+  const rohe = await d.getAllFromIndex("fotos", "nach-karte", karteId);
+  rohe.sort((a, b) => a.reihenfolge - b.reihenfolge);
+
+  const fotos: Foto[] = [];
+  for (const roh of rohe) {
+    if (roh.daten) {
+      fotos.push({
+        id: roh.id,
+        karte_id: roh.karte_id,
+        reihenfolge: roh.reihenfolge,
+        blob: new Blob([roh.daten], { type: roh.typ || "image/jpeg" }),
+      });
+    } else if (roh.blob) {
+      // Altformat: einmalig ins robuste Format überführen
+      try {
+        const daten = await roh.blob.arrayBuffer();
+        await d.put("fotos", {
+          id: roh.id,
+          karte_id: roh.karte_id,
+          reihenfolge: roh.reihenfolge,
+          daten,
+          typ: roh.blob.type || "image/jpeg",
+        });
+        fotos.push({
+          id: roh.id,
+          karte_id: roh.karte_id,
+          reihenfolge: roh.reihenfolge,
+          blob: new Blob([daten], { type: roh.blob.type || "image/jpeg" }),
+        });
+      } catch {
+        // Blob ist durch den iOS-Speicherfehler verloren — Foto überspringen
+      }
+    }
+  }
+  return fotos;
 }
 
 // --- Einstellungen (werden bewusst NIE exportiert) ---
