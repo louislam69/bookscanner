@@ -49,9 +49,12 @@ function ladeKonfiguration() {
   }
   if (!konfig.token || !konfig.repo) {
     console.error(
-      "Keine Konfiguration gefunden. Lege verarbeiter/konfig.json an:\n" +
-        '  { "token": "github_pat_…", "repo": "louislam69/lernkarten-daten" }\n' +
-        "(Token: fine-grained, nur dieses private Repo, Contents: Read and write)",
+      "Keine Konfiguration gefunden.\n\n" +
+        "So geht's: Kopiere die Datei konfig.beispiel.json (liegt in diesem\n" +
+        "Ordner) zu konfig.json und trage deine echten Werte ein:\n" +
+        '  { "token": "github_pat_…", "repo": "louislam69/lernkarten-daten" }\n\n' +
+        "Der Token ist derselbe wie in den App-Einstellungen am Handy\n" +
+        "(fine-grained, nur dieses private Repo, Contents: Read and write).",
     );
     process.exit(1);
   }
