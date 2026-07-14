@@ -131,9 +131,11 @@ export default function ScanAnsicht({
       </header>
 
       <p className="dezent">
-        Fotografiere alle Seiten, die zu <strong>einem</strong> Abschnitt
-        gehören (z. B. die 3 Seiten einer Taktik). Sie werden zusammen zu einer
-        Lernkarte verarbeitet.
+        Fotografiere die Seiten einfach der Reihe nach — auch mehrere
+        Weisheiten am Stück und ihre Beispielseiten. Die KI erkennt
+        automatisch, wie viele Abschnitte enthalten sind, und erstellt{" "}
+        <strong>pro Weisheit eine eigene Karte</strong>; Beispiele werden der
+        passenden Karte als „Beispiel:"-Stichpunkt zugeordnet.
       </p>
 
       <div className="knopfzeile">

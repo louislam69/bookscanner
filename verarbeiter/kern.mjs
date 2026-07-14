@@ -4,6 +4,7 @@
  * (Abo-Login) an Claude und baut daraus fertige Lernkarten.
  */
 import { query } from "@anthropic-ai/claude-agent-sdk";
+import { randomUUID } from "node:crypto";
 import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -55,20 +56,31 @@ export async function verarbeiteScans(daten, melde = console.log) {
       const auftrag = `Lies diese Fotos (in genau dieser Reihenfolge) mit dem Read-Tool:
 ${fotoPfade.map((p) => `- ${p}`).join("\n")}
 
-Sie zeigen zusammengehörige Seiten aus dem Buch "${daten.buch.titel}"${daten.buch.autor ? ` von ${daten.buch.autor}` : ""} und behandeln einen inhaltlichen Abschnitt (z. B. eine Taktik, ein Konzept, eine Methode).
+Sie zeigen aufeinanderfolgende Seiten aus dem Buch "${daten.buch.titel}"${daten.buch.autor ? ` von ${daten.buch.autor}` : ""}. Die Seiten können EINEN oder MEHRERE eigenständige inhaltliche Abschnitte enthalten (z. B. mehrere Taktiken, Weisheiten oder Konzepte — oft jeweils gefolgt von einer Beispielseite).
 
-Erstelle daraus eine deutsche Lernkarte, die den Abschnitt so zusammenfasst, dass man ihn ohne das Buch wiederholen kann. ${kategorienHinweis}
+Deine Aufgabe:
+1. Erkenne selbstständig, wie viele eigenständige Abschnitte die Seiten enthalten und welches Thema jeder hat.
+2. Erstelle für JEDEN Abschnitt genau EINE deutsche Lernkarte, die ihn so zusammenfasst, dass man ihn ohne das Buch wiederholen kann. Packe niemals zwei verschiedene Abschnitte in eine Karte.
+3. Beispielseiten sind KEINE eigenen Abschnitte: Ordne jedes Beispiel dem Abschnitt zu, den es illustriert, und fasse es dort als einen kurzen Stichpunkt zusammen, der mit "Beispiel:" beginnt.
+
+${kategorienHinweis}
 
 Antworte AUSSCHLIESSLICH mit einem JSON-Objekt in exakt dieser Form (kein Markdown, kein sonstiger Text):
 {
-  "titel": "kurzer, prägnanter Titel",
-  "kernaussage": "die zentrale Aussage in 1-3 Sätzen",
-  "stichpunkte": ["3-7 Stichpunkte mit den wichtigsten Details"],
-  "kategorie": "thematische Kategorie",
-  "tags": ["0-4 kurze Schlagworte"],
-  "quelle_seiten": "Seitenzahlen falls auf den Fotos erkennbar, sonst leer",
-  "wichtigkeit": 3
+  "karten": [
+    {
+      "titel": "kurzer, prägnanter Titel",
+      "kernaussage": "die zentrale Aussage in 1-3 Sätzen",
+      "stichpunkte": ["3-7 Stichpunkte mit den wichtigsten Details"],
+      "kategorie": "thematische Kategorie",
+      "tags": ["0-4 kurze Schlagworte"],
+      "quelle_seiten": "Seitenzahlen falls auf den Fotos erkennbar, sonst leer",
+      "wichtigkeit": 3,
+      "fotos": [1, 2]
+    }
+  ]
 }
+"fotos" nennt die Nummern der Fotos, die zu dieser Karte gehören (1 = erstes Foto der Liste oben); Beispielseiten zählen zum jeweiligen Abschnitt, und jedes Foto gehört zu genau einer Karte.
 "wichtigkeit" ist eine Ganzzahl 1-5 (5 = fundamental, 1 = Randnotiz).`;
 
       try {
@@ -94,34 +106,51 @@ Antworte AUSSCHLIESSLICH mit einem JSON-Objekt in exakt dieser Form (kein Markdo
         if (!ergebnis) throw new Error("Keine Antwort erhalten");
 
         const ki = extrahiereJson(ergebnis);
-        const kategorie = String(ki.kategorie ?? "").trim();
-        if (kategorie && !kategorien.includes(kategorie)) kategorien.push(kategorie);
+        // Neue Form: { karten: [...] } — alte Einzelkarten-Antworten tolerieren
+        const kiKarten = Array.isArray(ki.karten) ? ki.karten : [ki];
+        if (kiKarten.length === 0) throw new Error("Antwort enthielt keine Karten");
 
-        karten.push({
-          id: scan.id,
-          titel: String(ki.titel ?? "").trim() || "Ohne Titel",
-          kernaussage: String(ki.kernaussage ?? "").trim(),
-          stichpunkte: Array.isArray(ki.stichpunkte)
-            ? ki.stichpunkte.map((s) => String(s).trim()).filter(Boolean)
-            : [],
-          kategorie,
-          tags: Array.isArray(ki.tags)
-            ? ki.tags.map((t) => String(t).trim()).filter(Boolean)
-            : [],
-          quelle_seiten:
-            String(ki.quelle_seiten ?? "").trim() || scan.quelle_seiten || "",
-          wichtigkeit: Math.min(
-            5,
-            Math.max(1, Math.round(Number(ki.wichtigkeit) || 3)),
-          ),
-          lernstatus: "neu",
-          naechste_wiederholung_am: null,
-          wiederholungs_intervall: 0,
-          verarbeitet: true,
-          erstellt_am: new Date().toISOString(),
-          zuletzt_bearbeitet_am: new Date().toISOString(),
-        });
-        melde(`      ✓ ${karten.at(-1).titel}`);
+        for (let k = 0; k < kiKarten.length; k++) {
+          const roh = kiKarten[k];
+          const kategorie = String(roh.kategorie ?? "").trim();
+          if (kategorie && !kategorien.includes(kategorie)) kategorien.push(kategorie);
+
+          const fotoNummern = Array.isArray(roh.fotos)
+            ? roh.fotos
+                .map((n) => Math.round(Number(n)))
+                .filter((n) => n >= 1 && n <= scan.fotos.length)
+            : [];
+
+          karten.push({
+            // Die erste Karte übernimmt die Scan-ID (aktualisiert den Scan in
+            // der App), weitere Abschnitte werden eigene neue Karten.
+            id: k === 0 ? scan.id : randomUUID(),
+            ...(k > 0 ? { scan_id: scan.id } : {}),
+            ...(fotoNummern.length ? { foto_nummern: fotoNummern } : {}),
+            titel: String(roh.titel ?? "").trim() || "Ohne Titel",
+            kernaussage: String(roh.kernaussage ?? "").trim(),
+            stichpunkte: Array.isArray(roh.stichpunkte)
+              ? roh.stichpunkte.map((s) => String(s).trim()).filter(Boolean)
+              : [],
+            kategorie,
+            tags: Array.isArray(roh.tags)
+              ? roh.tags.map((t) => String(t).trim()).filter(Boolean)
+              : [],
+            quelle_seiten:
+              String(roh.quelle_seiten ?? "").trim() || scan.quelle_seiten || "",
+            wichtigkeit: Math.min(
+              5,
+              Math.max(1, Math.round(Number(roh.wichtigkeit) || 3)),
+            ),
+            lernstatus: "neu",
+            naechste_wiederholung_am: null,
+            wiederholungs_intervall: 0,
+            verarbeitet: true,
+            erstellt_am: new Date().toISOString(),
+            zuletzt_bearbeitet_am: new Date().toISOString(),
+          });
+          melde(`      ✓ ${karten.at(-1).titel}`);
+        }
       } catch (fehler) {
         melde(`      ✗ fehlgeschlagen: ${fehler.message}`);
         fehlgeschlagen.push(i + 1);

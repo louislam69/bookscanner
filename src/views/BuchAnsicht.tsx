@@ -233,8 +233,9 @@ export default function BuchAnsicht({
 
       {karten.length === 0 && (
         <p className="leer">
-          Noch keine Karten. Fotografiere die zusammengehörigen Seiten eines
-          Abschnitts — die KI macht daraus eine Lernkarte.
+          Noch keine Karten. Fotografiere die Seiten der Reihe nach — die KI
+          erkennt die enthaltenen Abschnitte und macht aus jedem eine eigene
+          Lernkarte.
         </p>
       )}
 

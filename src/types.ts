@@ -45,7 +45,11 @@ export interface Einstellungen {
   githubRepo: string;
 }
 
-/** Antwortstruktur der KI-Kartenerstellung */
+/**
+ * Antwortstruktur der KI-Kartenerstellung. Ein Scan kann mehrere
+ * Abschnitte (Weisheiten) enthalten — die KI liefert pro Abschnitt eine
+ * Karte und sagt über foto_nummern, welche Fotos dazugehören.
+ */
 export interface KiKarte {
   titel: string;
   kernaussage: string;
@@ -54,6 +58,8 @@ export interface KiKarte {
   tags: string[];
   quelle_seiten: string;
   wichtigkeit: number;
+  /** 1-basierte Nummern der Fotos des Scans, die zu dieser Karte gehören */
+  foto_nummern: number[];
 }
 
 /** Format der Export-Datei (Abschnitt 9). Enthält niemals Zugangsdaten. */
@@ -62,7 +68,15 @@ export interface ExportDatei {
   version: 1;
   exportiert_am: string;
   buch: { titel: string; autor: string };
-  karten: Omit<Karte, "buch_id" | "foto_ids">[];
+  karten: (Omit<Karte, "buch_id" | "foto_ids"> & {
+    /**
+     * Nur vom PC-Verarbeiter gesetzt, wenn ein Scan mehrere Karten ergab:
+     * ID des Ursprungs-Scans und die 1-basierten Nummern seiner Fotos,
+     * die zu dieser Karte gehören — der Import verteilt die Fotos danach.
+     */
+    scan_id?: string;
+    foto_nummern?: number[];
+  })[];
 }
 
 /**

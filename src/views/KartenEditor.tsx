@@ -51,13 +51,38 @@ export default function KartenEditor({
     setFehler("");
     setLaeuft(true);
     try {
-      const neu = await verarbeiteKarte(karte, buch);
-      setKarte(neu);
+      const neue = await verarbeiteKarte(karte, buch);
+      if (neue.length > 1) {
+        // Die KI hat mehrere Abschnitte erkannt — zurück zur Buchansicht,
+        // dort sind alle entstandenen Karten zu sehen.
+        navigiere({ name: "buch", buchId });
+        return;
+      }
+      setKarte(neue[0]);
     } catch (f) {
       setFehler((f as Error).message);
     } finally {
       setLaeuft(false);
     }
+  }
+
+  async function alsScanZuruecksetzen() {
+    if (!karte) return;
+    if (
+      !confirm(
+        "Karte wieder zum unverarbeiteten Scan machen? Die Fotos bleiben erhalten — der Scan kann dann neu verarbeitet werden (Cloud/PC oder hier), z. B. damit die KI ihn in mehrere Karten aufteilt.",
+      )
+    ) {
+      return;
+    }
+    const zurueck = {
+      ...karte,
+      verarbeitet: false,
+      hochgeladen: false,
+      zuletzt_bearbeitet_am: jetzt(),
+    };
+    await speichereKarte(zurueck);
+    navigiere({ name: "buch", buchId });
   }
 
   return (
@@ -184,14 +209,24 @@ export default function KartenEditor({
           {gespeichert ? "✓ Gespeichert" : "Speichern"}
         </button>
         {karte.verarbeitet && fotoUrls.length > 0 && (
-          <button
-            className="knopf-sekundaer"
-            disabled={laeuft}
-            onClick={() => void verarbeiten()}
-            title="Karte aus den Fotos neu erstellen"
-          >
-            {laeuft ? "🤖 …" : "🤖 Neu erstellen"}
-          </button>
+          <>
+            <button
+              className="knopf-sekundaer"
+              disabled={laeuft}
+              onClick={() => void verarbeiten()}
+              title="Karte aus den Fotos neu erstellen (hier, per API-Key)"
+            >
+              {laeuft ? "🤖 …" : "🤖 Neu erstellen"}
+            </button>
+            <button
+              className="knopf-sekundaer"
+              disabled={laeuft}
+              onClick={() => void alsScanZuruecksetzen()}
+              title="Karte wird wieder zum unverarbeiteten Scan — z. B. um sie über die Cloud (PC/Pro-Abo) neu und ggf. in mehrere Karten aufteilen zu lassen"
+            >
+              ↩️ Als Scan zurücksetzen
+            </button>
+          </>
         )}
         <button
           className="knopf-gefahr"

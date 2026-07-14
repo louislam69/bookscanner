@@ -50,6 +50,12 @@ const KARTEN_SCHEMA = {
       description:
         "Einschätzung der Wichtigkeit für die Praxis: 5 = fundamental, 1 = Randnotiz",
     },
+    foto_nummern: {
+      type: "array",
+      items: { type: "integer" },
+      description:
+        "Nummern der Fotos, die zu dieser Karte gehören (1 = erstes Foto). Beispielseiten zählen zum Abschnitt, den sie illustrieren; jedes Foto gehört zu genau einer Karte.",
+    },
   },
   required: [
     "titel",
@@ -59,15 +65,30 @@ const KARTEN_SCHEMA = {
     "tags",
     "quelle_seiten",
     "wichtigkeit",
+    "foto_nummern",
   ],
   additionalProperties: false,
 } as const;
 
-export async function erstelleKarteMitKi(
+const ANTWORT_SCHEMA = {
+  type: "object",
+  properties: {
+    karten: {
+      type: "array",
+      minItems: 1,
+      items: KARTEN_SCHEMA,
+      description: "Eine Lernkarte pro erkanntem inhaltlichen Abschnitt",
+    },
+  },
+  required: ["karten"],
+  additionalProperties: false,
+} as const;
+
+export async function erstelleKartenMitKi(
   fotos: Blob[],
   kontext: { buchTitel: string; autor: string; kategorien: string[] },
   einstellungen: Einstellungen,
-): Promise<KiKarte> {
+): Promise<KiKarte[]> {
   if (!einstellungen.apiKey) {
     throw new Error(
       "Kein API-Key hinterlegt. Bitte zuerst in den Einstellungen einen Anthropic-API-Key eintragen.",
@@ -94,9 +115,12 @@ export async function erstelleKarteMitKi(
     ? `Bisher verwendete Kategorien in diesem Buch: ${kontext.kategorien.join(", ")}. Verwende eine davon, wenn sie inhaltlich passt; sonst schlage eine neue, kurze Kategorie vor.`
     : "Es gibt noch keine Kategorien in diesem Buch. Schlage eine kurze, wiederverwendbare Kategorie vor.";
 
-  const auftrag = `Die Fotos zeigen zusammengehörige Seiten aus dem Buch "${kontext.buchTitel}"${kontext.autor ? ` von ${kontext.autor}` : ""}. Sie behandeln einen inhaltlichen Abschnitt (z. B. eine Taktik, ein Konzept, eine Methode).
+  const auftrag = `Die Fotos zeigen aufeinanderfolgende Seiten aus dem Buch "${kontext.buchTitel}"${kontext.autor ? ` von ${kontext.autor}` : ""}. Sie können EINEN oder MEHRERE eigenständige inhaltliche Abschnitte enthalten (z. B. mehrere Taktiken, Weisheiten oder Konzepte — oft jeweils gefolgt von einer Beispielseite).
 
-Lies die Fotos und erstelle daraus eine deutsche Lernkarte, die den Abschnitt so zusammenfasst, dass man ihn ohne das Buch wiederholen kann.
+Deine Aufgabe:
+1. Erkenne selbstständig, wie viele eigenständige Abschnitte die Seiten enthalten und welches Thema jeder hat.
+2. Erstelle für JEDEN Abschnitt genau EINE deutsche Lernkarte, die ihn so zusammenfasst, dass man ihn ohne das Buch wiederholen kann. Packe niemals zwei verschiedene Abschnitte in eine Karte.
+3. Beispielseiten sind KEINE eigenen Abschnitte: Ordne jedes Beispiel dem Abschnitt zu, den es illustriert, und fasse es dort als einen kurzen Stichpunkt zusammen, der mit "Beispiel:" beginnt.
 
 ${kategorienHinweis}`;
 
@@ -107,7 +131,7 @@ ${kategorienHinweis}`;
       max_tokens: 16000,
       thinking: { type: "adaptive" },
       output_config: {
-        format: { type: "json_schema", schema: KARTEN_SCHEMA },
+        format: { type: "json_schema", schema: ANTWORT_SCHEMA },
       },
       messages: [
         {
@@ -134,16 +158,22 @@ ${kategorienHinweis}`;
   const text = antwort.content.find((b) => b.type === "text")?.text;
   if (!text) throw new Error("Die KI hat keine verwertbare Antwort geliefert.");
 
-  const roh = JSON.parse(text) as KiKarte;
-  return {
-    titel: roh.titel.trim(),
-    kernaussage: roh.kernaussage.trim(),
-    stichpunkte: roh.stichpunkte.map((s) => s.trim()).filter(Boolean),
-    kategorie: roh.kategorie.trim(),
-    tags: roh.tags.map((t) => t.trim()).filter(Boolean),
-    quelle_seiten: roh.quelle_seiten.trim(),
-    wichtigkeit: Math.min(5, Math.max(1, Math.round(roh.wichtigkeit))),
-  };
+  const roh = JSON.parse(text) as { karten: KiKarte[] };
+  if (!Array.isArray(roh.karten) || roh.karten.length === 0) {
+    throw new Error("Die KI hat keine verwertbare Antwort geliefert.");
+  }
+  return roh.karten.map((k) => ({
+    titel: k.titel.trim(),
+    kernaussage: k.kernaussage.trim(),
+    stichpunkte: k.stichpunkte.map((s) => s.trim()).filter(Boolean),
+    kategorie: k.kategorie.trim(),
+    tags: k.tags.map((t) => t.trim()).filter(Boolean),
+    quelle_seiten: k.quelle_seiten.trim(),
+    wichtigkeit: Math.min(5, Math.max(1, Math.round(k.wichtigkeit))),
+    foto_nummern: (k.foto_nummern ?? [])
+      .map((n) => Math.round(n))
+      .filter((n) => n >= 1 && n <= fotos.length),
+  }));
 }
 
 function uebersetzeFehler(fehler: unknown): Error {

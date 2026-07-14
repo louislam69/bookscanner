@@ -3,8 +3,10 @@ import { jetzt, neueId } from "../types";
 import {
   ladeBuecher,
   ladeFotos,
+  ladeKarte,
   ladeKarten,
   speichereBuch,
+  speichereFoto,
   speichereKarte,
 } from "../db";
 import { blobZuBase64 } from "./bild";
@@ -172,7 +174,17 @@ export async function importiereExportDaten(
   let aktualisiert = 0;
   let uebersprungen = 0;
 
-  for (const roh of daten.karten) {
+  // Wenn der PC-Verarbeiter aus einem Scan mehrere Karten gemacht hat,
+  // tragen die zusätzlichen Karten scan_id + foto_nummern — danach werden
+  // die Fotos des Ursprungs-Scans nach dem Import verteilt.
+  const fotoZuweisungen: {
+    karteId: string;
+    scanId: string;
+    nummern: number[];
+  }[] = [];
+
+  for (const rohMitExtras of daten.karten) {
+    const { scan_id, foto_nummern, ...roh } = rohMitExtras;
     const bestehend = roh.id ? nachId.get(roh.id) : undefined;
 
     if (bestehend) {
@@ -221,7 +233,58 @@ export async function importiereExportDaten(
     };
     await speichereKarte(karte);
     importiert++;
+
+    if (scan_id && foto_nummern?.length) {
+      fotoZuweisungen.push({ karteId: karte.id, scanId: scan_id, nummern: foto_nummern });
+    }
   }
 
+  await verteileFotos(fotoZuweisungen);
+
   return { buchTitel: buch.titel, importiert, aktualisiert, uebersprungen };
+}
+
+/**
+ * Verteilt die Fotos eines Scans auf die Karten, die daraus entstanden sind.
+ * Nicht beanspruchte Fotos bleiben beim Ursprungs-Scan (= erste Karte).
+ * Existiert der Scan lokal nicht (Import auf einem fremden Gerät), passiert
+ * schlicht nichts.
+ */
+async function verteileFotos(
+  zuweisungen: { karteId: string; scanId: string; nummern: number[] }[],
+) {
+  const nachScan = new Map<string, typeof zuweisungen>();
+  for (const z of zuweisungen) {
+    const liste = nachScan.get(z.scanId) ?? [];
+    liste.push(z);
+    nachScan.set(z.scanId, liste);
+  }
+
+  for (const [scanId, liste] of nachScan) {
+    const scanKarte = await ladeKarte(scanId);
+    if (!scanKarte) continue;
+    const fotos = await ladeFotos(scanId); // nach Reihenfolge sortiert
+    const vergeben = new Set<string>();
+
+    for (const z of liste) {
+      const karte = await ladeKarte(z.karteId);
+      if (!karte) continue;
+      const eigene = z.nummern
+        .map((n) => fotos[Math.round(n) - 1])
+        .filter((f) => f && !vergeben.has(f.id));
+      if (eigene.length === 0) continue;
+      for (const f of eigene) {
+        vergeben.add(f.id);
+        await speichereFoto({ ...f, karte_id: z.karteId });
+      }
+      await speichereKarte({ ...karte, foto_ids: eigene.map((f) => f.id) });
+    }
+
+    const rest = fotos.filter((f) => !vergeben.has(f.id));
+    await speichereKarte({
+      ...scanKarte,
+      foto_ids: rest.map((f) => f.id),
+      zuletzt_bearbeitet_am: jetzt(),
+    });
+  }
 }

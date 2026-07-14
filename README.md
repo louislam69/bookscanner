@@ -14,12 +14,14 @@ Export/Import zum Teilen. Umsetzung der Spezifikation
   läuft komplett auf dem Gerät); alternativ einfaches Foto oder
   Datei-Upload. Funktioniert offline; Fotos werden verkleinert und lokal in
   IndexedDB gespeichert
-- **Fotos gruppieren** — alle Fotos eines Abschnitts (z. B. die 3 Seiten einer
-  Taktik) werden zu einer Karten-Einheit
-- **KI-Verarbeitung** — Claude liest die Fotos direkt (kein OCR-Schritt) und
-  liefert per strukturierter JSON-Ausgabe Titel, Kernaussage, Stichpunkte,
-  Kategorie-Vorschlag und Wichtigkeit; vorhandene Kategorien werden
-  wiederverwendet
+- **Fotos gruppieren** — einfach die Seiten der Reihe nach fotografieren,
+  auch mehrere Weisheiten samt Beispielseiten am Stück
+- **KI-Verarbeitung** — Claude liest die Fotos direkt (kein OCR-Schritt),
+  erkennt selbst, wie viele inhaltliche Abschnitte enthalten sind, und
+  erstellt **pro Abschnitt eine eigene Karte** (Titel, Kernaussage,
+  Stichpunkte, Kategorie, Wichtigkeit); Beispielseiten werden der passenden
+  Karte als „Beispiel:“-Stichpunkt zugeordnet, die Fotos werden auf die
+  Karten verteilt; vorhandene Kategorien werden wiederverwendet
 - **Kartenverwaltung** — Liste mit Sortierung/Filter (Wichtigkeit, Kategorie,
   Lernstatus), manuelle Nachbearbeitung aller Felder
 - **Lernmodus** — Spaced Repetition (vereinfachtes SM-2) mit drei

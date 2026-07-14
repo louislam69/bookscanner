@@ -51,13 +51,12 @@ const png = Buffer.from(
   "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==",
   "base64",
 );
-await page.setInputFiles('input[type="file"][multiple]', {
-  name: "seite1.png",
-  mimeType: "image/png",
-  buffer: png,
-});
+await page.setInputFiles('input[type="file"][multiple]', [
+  { name: "seite1.png", mimeType: "image/png", buffer: png },
+  { name: "seite2.png", mimeType: "image/png", buffer: png },
+]);
 await page.waitForSelector(".foto-kachel img");
-console.log("3. Foto hinzugefügt (verkleinert + Vorschau)");
+console.log("3. Fotos hinzugefügt (verkleinert + Vorschau)");
 
 // Offline speichern (ohne KI)
 await page.fill('input[placeholder="z. B. 42-44"]', "12-14");
@@ -82,16 +81,26 @@ const scansDatei = JSON.parse(readFileSync(await download.path(), "utf8"));
 if (
   scansDatei.format !== "buch-lernkarten-scans" ||
   scansDatei.scans.length !== 1 ||
-  scansDatei.scans[0].fotos.length !== 1 ||
+  scansDatei.scans[0].fotos.length !== 2 ||
   scansDatei.scans[0].quelle_seiten !== "12-14"
 ) {
   throw new Error(
     "Scan-Export fehlerhaft: " + JSON.stringify(scansDatei).slice(0, 200),
   );
 }
-console.log("6. Scan-Export für PC-Verarbeitung ok (inkl. Foto als Base64)");
+console.log("6. Scan-Export für PC-Verarbeitung ok (inkl. Fotos als Base64)");
 
-// Verarbeitete Datei simulieren (das erzeugt sonst verarbeiter/verarbeite.mjs)
+// Verarbeitete Datei simulieren (das erzeugt sonst verarbeiter/sync.mjs).
+// Die KI hat in dem Scan ZWEI Abschnitte erkannt: die erste Karte
+// aktualisiert den Scan, die zweite ist neu und beansprucht Foto 2.
+const basisKarte = {
+  lernstatus: "neu",
+  naechste_wiederholung_am: null,
+  wiederholungs_intervall: 0,
+  verarbeitet: true,
+  erstellt_am: new Date().toISOString(),
+  zuletzt_bearbeitet_am: new Date().toISOString(),
+};
 const verarbeitet = {
   format: "buch-lernkarten-export",
   version: 1,
@@ -99,23 +108,33 @@ const verarbeitet = {
   buch: scansDatei.buch,
   karten: [
     {
+      ...basisKarte,
       id: scansDatei.scans[0].id,
+      foto_nummern: [1],
       titel: "Das Reizen richtig einschätzen",
       kernaussage: "Vor dem Reizen Trümpfe zählen und Sitzposition beachten.",
       stichpunkte: [
         "Mindestens 5 Trümpfe",
         "Position hinter dem Geber ist stark",
+        "Beispiel: Mit Eichel-Ober und 5 Herz reizt man das Solo",
       ],
       kategorie: "Reizen",
       tags: ["Taktik"],
       quelle_seiten: "12-14",
       wichtigkeit: 5,
-      lernstatus: "neu",
-      naechste_wiederholung_am: null,
-      wiederholungs_intervall: 0,
-      verarbeitet: true,
-      erstellt_am: new Date().toISOString(),
-      zuletzt_bearbeitet_am: new Date().toISOString(),
+    },
+    {
+      ...basisKarte,
+      id: crypto.randomUUID(),
+      scan_id: scansDatei.scans[0].id,
+      foto_nummern: [2],
+      titel: "Den Ramsch früh erkennen",
+      kernaussage: "Wenn niemand reizt, rechtzeitig auf Ramsch umdenken.",
+      stichpunkte: ["Hohe Karten früh abwerfen"],
+      kategorie: "Ramsch",
+      tags: [],
+      quelle_seiten: "13",
+      wichtigkeit: 3,
     },
   ],
 };
@@ -130,18 +149,33 @@ console.log("7. Import der verarbeiteten Datei: Roh-Scan wurde aktualisiert");
 
 await page.click('.eintrag-haupt:has-text("Schafkopf für Gewinner")');
 await page.waitForSelector("text=Das Reizen richtig einschätzen");
+await page.waitForSelector("text=Den Ramsch früh erkennen");
 if (await page.locator("text=Unverarbeiteter Scan").count()) {
   throw new Error("Roh-Scan wurde nicht in fertige Karte umgewandelt");
 }
-console.log("8. Karte ist fertig, Fotos blieben erhalten");
+console.log("8. Ein Scan → zwei Karten (mehrere Abschnitte erkannt)");
 
-// Lernmodus mit der fertigen Karte
+// Foto-Verteilung: jede der beiden Karten hat genau eines der zwei Fotos
+for (const titel of ["Das Reizen richtig einschätzen", "Den Ramsch früh erkennen"]) {
+  await page.click(`.eintrag-haupt:has-text("${titel}")`);
+  await page.waitForSelector("text=Original-Fotos");
+  const anzahl = await page.locator(".foto-kachel img").count();
+  if (anzahl !== 1) {
+    throw new Error(`Karte "${titel}" hat ${anzahl} Fotos statt 1`);
+  }
+  await page.click(".kopf .knopf-leise");
+}
+console.log("8b. Fotos wurden korrekt auf die Karten verteilt (1 + 1)");
+
+// Lernmodus mit den beiden fertigen Karten
 await page.click("text=🎓 Lernen");
-await page.waitForSelector('button:has-text("Aufdecken")');
-await page.click('button:has-text("Aufdecken")');
-await page.click("text=✓ Wusste ich sofort");
+for (let i = 0; i < 2; i++) {
+  await page.waitForSelector('button:has-text("Aufdecken")');
+  await page.click('button:has-text("Aufdecken")');
+  await page.click("text=✓ Wusste ich sofort");
+}
 await page.waitForSelector("text=🎉");
-console.log("9. Lernmodus: Karte wiederholt, Sitzung abgeschlossen");
+console.log("9. Lernmodus: beide Karten wiederholt, Sitzung abgeschlossen");
 await page.click("text=Zurück zum Buch");
 await page.click(".kopf .knopf-leise");
 
