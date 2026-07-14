@@ -59,7 +59,9 @@ console.log(
 );
 console.log(`${daten.scans.length} Scan(s) zu verarbeiten.\n`);
 
-const { karten, fehlgeschlagen } = await verarbeiteScans(daten);
+const { karten, fehlgeschlagen } = await verarbeiteScans(daten, console.log, {
+  modell: process.env.LERNKARTEN_MODELL ?? "",
+});
 
 if (karten.length === 0) {
   console.error(

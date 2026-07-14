@@ -34,6 +34,9 @@ function ladeKonfiguration() {
   let konfig = {
     token: process.env.GITHUB_TOKEN ?? "",
     repo: process.env.LERNKARTEN_REPO ?? "",
+    // Optional: "opus" für beste Erkennung (mehr Abo-Verbrauch), sonst
+    // Standard des Abos. Auch per Umgebungsvariable LERNKARTEN_MODELL.
+    modell: process.env.LERNKARTEN_MODELL ?? "",
   };
   const pfad = join(dirname(fileURLToPath(import.meta.url)), "konfig.json");
   if (existsSync(pfad)) {
@@ -117,7 +120,7 @@ async function einDurchlauf(konfig) {
 
     let ergebnis;
     try {
-      ergebnis = await verarbeiteScans(daten);
+      ergebnis = await verarbeiteScans(daten, console.log, { modell: konfig.modell });
     } catch (fehler) {
       console.log(`  ${fehler.message} — übersprungen.`);
       continue;

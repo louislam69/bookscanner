@@ -115,12 +115,18 @@ export async function erstelleKartenMitKi(
     ? `Bisher verwendete Kategorien in diesem Buch: ${kontext.kategorien.join(", ")}. Verwende eine davon, wenn sie inhaltlich passt; sonst schlage eine neue, kurze Kategorie vor.`
     : "Es gibt noch keine Kategorien in diesem Buch. Schlage eine kurze, wiederverwendbare Kategorie vor.";
 
-  const auftrag = `Die Fotos zeigen aufeinanderfolgende Seiten aus dem Buch "${kontext.buchTitel}"${kontext.autor ? ` von ${kontext.autor}` : ""}. Sie können EINEN oder MEHRERE eigenständige inhaltliche Abschnitte enthalten (z. B. mehrere Taktiken, Weisheiten oder Konzepte — oft jeweils gefolgt von einer Beispielseite).
+  const auftrag = `Die Fotos zeigen aufeinanderfolgende Seiten aus dem Buch "${kontext.buchTitel}"${kontext.autor ? ` von ${kontext.autor}` : ""}. Sie können EINEN oder MEHRERE eigenständige inhaltliche Abschnitte (Weisheiten/Taktiken) enthalten.
+
+Typischer Aufbau solcher Ratgeber:
+- Die Abschnitte sind NUMMERIERT (z. B. "1.9", "3.15") mit einer Überschrift in Großbuchstaben. Jede Nummer ist eine eigenständige Weisheit.
+- Oben auf jeder Seite läuft die Kapitel-Überschrift mit (z. B. "Sauspiel als rufender Spieler", "Sauspiel als Gegenspieler") — nutze sie als Kategorie.
+- Zu einem Abschnitt gehören meist eine Textseite (die Erklärung, oft mit einem FETT gedruckten Merksatz) UND eine Bild-/Beispielseite (eine Kartenhand, eine Frage in einer Sprechblase wie "Welchen Trumpf soll ich zugeben?", nummerierte Denkschritte und die Lösung "Antwort: …"). Beide gehören in DIESELBE Karte.
 
 Deine Aufgabe:
-1. Erkenne selbstständig, wie viele eigenständige Abschnitte die Seiten enthalten und welches Thema jeder hat.
-2. Erstelle für JEDEN Abschnitt genau EINE deutsche Lernkarte, die ihn so zusammenfasst, dass man ihn ohne das Buch wiederholen kann. Packe niemals zwei verschiedene Abschnitte in eine Karte.
-3. Beispielseiten sind KEINE eigenen Abschnitte: Ordne jedes Beispiel dem Abschnitt zu, den es illustriert, und fasse es dort als einen kurzen Stichpunkt zusammen, der mit "Beispiel:" beginnt.
+1. Erkenne selbstständig, wie viele eigenständige Abschnitte die Seiten enthalten (eine neue nummerierte Überschrift = ein neuer Abschnitt) und welches Thema jeder hat.
+2. Erstelle für JEDEN Abschnitt genau EINE deutsche Lernkarte, die ihn so zusammenfasst, dass man ihn ohne das Buch wiederholen kann. Packe niemals zwei verschiedene Abschnitte in eine Karte. Als Titel eignet sich die Abschnitts-Überschrift (ohne Nummer), in "quelle_seiten" kommen Abschnittsnummer und/oder Seitenzahlen.
+3. Steht ein zentraler Satz FETT (meist am Ende der Textseite), nimm ihn als Kernaussage.
+4. Beispiel-/Bildseiten sind KEINE eigenen Abschnitte: Ordne jede dem Abschnitt zu, den sie illustriert, und fasse die Aufgabe (die Frage in der Sprechblase samt "Antwort") als einen Stichpunkt zusammen, der mit "Beispiel:" beginnt.
 
 ${kategorienHinweis}`;
 

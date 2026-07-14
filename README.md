@@ -63,6 +63,10 @@ den **App-Einstellungen** eintragen und am PC in `verarbeiter/konfig.json`:
 { "token": "github_pat_…", "repo": "louislam69/lernkarten-daten" }
 ```
 
+(Vorlage: `verarbeiter/konfig.beispiel.json`.) Optional lässt sich mit
+`"modell": "opus"` das stärkste Modell für die beste Erkennung erzwingen —
+verbraucht aber mehr Abo-Guthaben; ohne Angabe entscheidet das Abo (Standard).
+
 Ablauf danach:
 
 1. **Handy:** Seiten scannen → **„☁️ In Cloud hochladen"**

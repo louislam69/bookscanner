@@ -9,6 +9,19 @@ import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
+/**
+ * Struktur-Hinweis für die KI, abgeleitet aus dem realen Aufbau des
+ * Schafkopf-Ratgebers (nummerierte Abschnitte über je eine Doppelseite:
+ * Textseite mit fettem Merksatz + Bild-/Beispielseite mit Kartenaufgabe).
+ * Bewusst mit "typischerweise/oft" formuliert, damit es auch für anders
+ * gebaute Bücher noch sinnvoll bleibt.
+ */
+export const STRUKTUR_HINWEIS = `Typischer Aufbau solcher Ratgeber:
+- Die Abschnitte sind NUMMERIERT (z. B. "1.9", "3.15") mit einer Überschrift in Großbuchstaben. Jede Nummer ist eine eigenständige Weisheit.
+- Oben auf jeder Seite läuft die Kapitel-Überschrift mit (z. B. "Sauspiel als rufender Spieler", "Sauspiel als Gegenspieler") — nutze sie als Kategorie.
+- Zu einem Abschnitt gehören meist eine Textseite (die Erklärung, oft mit einem FETT gedruckten Merksatz) UND eine Bild-/Beispielseite (eine Kartenhand, eine Frage in einer Sprechblase wie "Welchen Trumpf soll ich zugeben?", nummerierte Denkschritte und die Lösung "Antwort: …"). Beide gehören in DIESELBE Karte.
+- Als Titel eignet sich die Abschnitts-Überschrift (ohne Nummer). Trage Abschnittsnummer und/oder Seitenzahlen in "quelle_seiten" ein.`;
+
 export function pruefeScanDatei(daten) {
   if (daten?.format !== "buch-lernkarten-scans" || !Array.isArray(daten.scans)) {
     throw new Error(
@@ -28,9 +41,12 @@ function extrahiereJson(text) {
 
 /**
  * Verarbeitet alle Scans einer Scan-Datei.
+ * @param {object} [optionen]
+ * @param {string} [optionen.modell] Agent-SDK-Modell (z. B. "opus", "sonnet").
+ *   Ohne Angabe entscheidet das SDK (Standard des angemeldeten Abos).
  * @returns {Promise<{karten: object[], fehlgeschlagen: number[]}>}
  */
-export async function verarbeiteScans(daten, melde = console.log) {
+export async function verarbeiteScans(daten, melde = console.log, optionen = {}) {
   pruefeScanDatei(daten);
 
   const arbeitsordner = mkdtempSync(join(tmpdir(), "lernkarten-"));
@@ -56,12 +72,15 @@ export async function verarbeiteScans(daten, melde = console.log) {
       const auftrag = `Lies diese Fotos (in genau dieser Reihenfolge) mit dem Read-Tool:
 ${fotoPfade.map((p) => `- ${p}`).join("\n")}
 
-Sie zeigen aufeinanderfolgende Seiten aus dem Buch "${daten.buch.titel}"${daten.buch.autor ? ` von ${daten.buch.autor}` : ""}. Die Seiten können EINEN oder MEHRERE eigenständige inhaltliche Abschnitte enthalten (z. B. mehrere Taktiken, Weisheiten oder Konzepte — oft jeweils gefolgt von einer Beispielseite).
+Sie zeigen aufeinanderfolgende Seiten aus dem Buch "${daten.buch.titel}"${daten.buch.autor ? ` von ${daten.buch.autor}` : ""}. Die Seiten können EINEN oder MEHRERE eigenständige inhaltliche Abschnitte (Weisheiten/Taktiken) enthalten.
+
+${STRUKTUR_HINWEIS}
 
 Deine Aufgabe:
-1. Erkenne selbstständig, wie viele eigenständige Abschnitte die Seiten enthalten und welches Thema jeder hat.
+1. Erkenne selbstständig, wie viele eigenständige Abschnitte die Seiten enthalten (eine neue nummerierte Überschrift = ein neuer Abschnitt) und welches Thema jeder hat.
 2. Erstelle für JEDEN Abschnitt genau EINE deutsche Lernkarte, die ihn so zusammenfasst, dass man ihn ohne das Buch wiederholen kann. Packe niemals zwei verschiedene Abschnitte in eine Karte.
-3. Beispielseiten sind KEINE eigenen Abschnitte: Ordne jedes Beispiel dem Abschnitt zu, den es illustriert, und fasse es dort als einen kurzen Stichpunkt zusammen, der mit "Beispiel:" beginnt.
+3. Steht ein zentraler Satz FETT (meist am Ende der Textseite), nimm ihn als Kernaussage.
+4. Beispiel-/Bildseiten sind KEINE eigenen Abschnitte: Ordne jede dem Abschnitt zu, den sie illustriert, und fasse die Aufgabe (die Frage in der Sprechblase samt "Antwort") als einen Stichpunkt zusammen, der mit "Beispiel:" beginnt.
 
 ${kategorienHinweis}
 
@@ -92,6 +111,7 @@ Antworte AUSSCHLIESSLICH mit einem JSON-Objekt in exakt dieser Form (kein Markdo
             allowedTools: ["Read"],
             permissionMode: "bypassPermissions",
             maxTurns: 16,
+            ...(optionen.modell ? { model: optionen.modell } : {}),
           },
         })) {
           if (nachricht.type === "result") {
